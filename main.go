@@ -3,7 +3,7 @@ package main
 import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"introduction-rabbitmq-food-order-subscriber-example/consumers"
-	"introduction-rabbitmq-food-order-subscriber-example/publishers"
+	"introduction-rabbitmq-food-order-subscriber-example/exchange_queues"
 	"log"
 )
 
