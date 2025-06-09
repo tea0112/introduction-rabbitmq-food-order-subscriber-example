@@ -22,6 +22,8 @@ func main() {
 	}
 	defer ch.Close()
 
+	log.Println("Starting to consume messages")
+
 	exchange_queues.DeclareAndBind(ch)
 	consumers.Consume(ch)
 
