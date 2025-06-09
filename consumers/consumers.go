@@ -57,23 +57,29 @@ func ConsumeRestaurantABCQueue(ch *amqp.Channel) {
 
 func handleOrderDeliveryMessages(orderDeliveries <-chan amqp.Delivery) {
 	for d := range orderDeliveries {
-		log.Printf("Received order: %s", d.Body)
+		log.Printf("Received order delivery message with body: %s", d.Body)
 		time.Sleep(2 * time.Second) // Simulate processing
 
 		var order map[string]string
 		json.Unmarshal(d.Body, &order)
 
 		// Poison message always fails
-		if order["order_id"] == "poison" {
-			log.Printf("Processing failed for poison message, requeueing")
+		if order["order_id"] == "order_id_POISON" {
+			log.Printf("Processing order delivery message id: %s failed for poison message, requeueing", order["order_id"])
 			d.Nack(false, true) // Negative acknowledgment with requeue
-		} else if rand.Intn(10) < 3 { // 30% chance to fail
-			log.Printf("Processing failed, requeueing")
-			d.Nack(false, true) // Negative acknowledgment with requeue
-		} else {
-			log.Printf("Order processed successfully")
-			d.Ack(false) // Manual acknowledgment
+			continue
 		}
+
+		// Get a chance to show the case handle order failed
+		if rand.Intn(10) < 3 { // 30% chance to fail
+			log.Printf("Processing order delivery message id: %s failed, requeueing", order["order_id"])
+			d.Nack(false, true) // Negative acknowledgment with requeue
+			continue
+		}
+
+		// Handle an order delivery message successfully
+		log.Printf("Order delivery message id: %s processed successfully", order["order_id"])
+		d.Ack(false) // Manual acknowledgment
 	}
 }
 
@@ -90,9 +96,10 @@ func ConsumeDriver1Queue(ch *amqp.Channel) {
 	if err != nil {
 		log.Fatalf("Failed to register consumer for driver1_queue: %v", err)
 	}
+
 	go func() {
 		for d := range driver1Deliveries {
-			log.Printf("Driver 1 received order ready: %s", d.Body)
+			log.Printf("Driver 1 received order ready message with body: %s", d.Body)
 			time.Sleep(time.Second) // Simulate processing
 			d.Ack(false)            // Manual acknowledgment
 		}
@@ -112,9 +119,10 @@ func ConsumeDriver2Queue(ch *amqp.Channel) {
 	if err != nil {
 		log.Fatalf("Failed to register consumer for driver2_queue: %v", err)
 	}
+
 	go func() {
 		for d := range driver2Deliveries {
-			log.Printf("Driver 2 received order ready: %s", d.Body)
+			log.Printf("Driver 2 received order ready message with body: %s", d.Body)
 			time.Sleep(time.Second) // Simulate processing
 			d.Ack(false)            // Manual acknowledgment
 		}
@@ -134,9 +142,10 @@ func ConsumeNorthDeliveriesQueue(ch *amqp.Channel) {
 	if err != nil {
 		log.Fatalf("Failed to register consumer for north_deliveries: %v", err)
 	}
+
 	go func() {
 		for d := range northDeliveries {
-			log.Printf("North region received assignment: %s", d.Body)
+			log.Printf("North region received assignment message with body: %s", d.Body)
 			time.Sleep(time.Second) // Simulate processing
 			d.Ack(false)            // Manual acknowledgment
 		}
@@ -164,9 +173,10 @@ func ConsumeInTransitQueue(ch *amqp.Channel) {
 	if err != nil {
 		log.Fatalf("Failed to register consumer for in_transit_queue: %v", err)
 	}
+
 	go func() {
 		for d := range statusDeliveries {
-			log.Printf("Received status update: %s", d.Body)
+			log.Printf("Received status update message with body: %s", d.Body)
 			time.Sleep(10 * time.Second) // Slow processing to allow TTL expiration
 			d.Ack(false)                 // Manual acknowledgment
 		}
@@ -184,11 +194,12 @@ func ConsumeDeadLetterQueue(ch *amqp.Channel) {
 		nil,
 	)
 	if err != nil {
-		log.Fatalf("Failed to register consumer for dlq: %v", err)
+		log.Fatalf("Failed to register consumer for Dead Letter Queue: %v", err)
 	}
+
 	go func() {
 		for d := range dlqDeliveries {
-			log.Printf("Received dead-lettered message: %s", d.Body)
+			log.Printf("Received dead-lettered message with body: %s", d.Body)
 			// Check x-death header for retry/expiration history
 			if deaths, ok := d.Headers["x-death"].([]any); ok {
 				var xDeathRecords strings.Builder
