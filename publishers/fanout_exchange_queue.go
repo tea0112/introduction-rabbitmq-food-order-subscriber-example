@@ -1,28 +1,26 @@
-package main
+package publishers
 
 import (
 	"fmt"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func DeclareAndBindDirectExchangeQueue(ch *amqp.Channel, queueName string, exchangeName string, bindingKey string, args amqp.Table) (*amqp.Queue, error) {
-	// Declare queue for Direct Exchange with delivery limit and DLX
+func DeclareAndBindFanoutExchangeQueue(ch *amqp.Channel, queueName string, exchangeName string) (*amqp.Queue, error) {
+	// Declare queues for Fanout Exchange
 	queue, err := ch.QueueDeclare(
 		queueName, // name
 		true,      // durable
 		false,     // delete when unused
 		false,     // exclusive
 		false,     // no-wait
-		args,      // arguments
+		nil,       // arguments
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to declare %s: %v", queueName, err)
 	}
-
-	// Bind queue to Direct Exchange
 	err = ch.QueueBind(
 		queue.Name,   // queue name
-		bindingKey,   // routing key
+		"",           // routing key (empty for fanout)
 		exchangeName, // exchange
 		false,        // no-wait
 		nil,          // arguments
