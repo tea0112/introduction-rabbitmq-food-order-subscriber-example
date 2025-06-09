@@ -199,7 +199,8 @@ func ConsumeDeadLetterQueue(ch *amqp.Channel) {
 
 	go func() {
 		for d := range dlqDeliveries {
-			log.Printf("Received dead-lettered message with body: %s", d.Body)
+			log.Printf("Received Dead Letter message with body: %s", d.Body)
+
 			// Check x-death header for retry/expiration history
 			if deaths, ok := d.Headers["x-death"].([]any); ok {
 				var xDeathRecords strings.Builder
@@ -209,11 +210,13 @@ func ConsumeDeadLetterQueue(ch *amqp.Channel) {
 							i+1, deathMap["exchange"], deathMap["count"]))
 					}
 				}
+
 				if xDeathRecords.Len() > 0 {
 					log.Printf("x-death Records:\n%s", xDeathRecords.String())
 				}
 			}
-			d.Ack(false) // Acknowledge dead-lettered message
+
+			d.Ack(false) // Acknowledge a Dead Letter message
 		}
 	}()
 }
