@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/rand"
+	"strings"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -63,103 +65,32 @@ func main() {
 		log.Fatalf("Failed to bind dlq: %v", err)
 	}
 
-	// Declare queue for Direct Exchange with delivery limit and DLX
-	orderArgs := amqp.Table{
+	// Declare queue for Direct Exchange
+	args := amqp.Table{
 		"x-queue-type":              "quorum",       // Queue type supports x-delivery-limit
 		"x-delivery-limit":          3,              // Retry up to 3 times
 		"x-dead-letter-exchange":    "dlx_exchange", // Dead letter exchange
 		"x-dead-letter-routing-key": "dlq_key",      // Dead letter routing key
 	}
-	restaurantQueue, err := ch.QueueDeclare(
-		"restaurant_abc_queue", // name
-		true,                   // durable
-		false,                  // delete when unused
-		false,                  // exclusive
-		false,                  // no-wait
-		orderArgs,              // arguments
-	)
+	restaurantQueue, err := DeclareAndBindDirectExchangeQueue(ch, "restaurant_abc_queue", "orders_exchange", "restaurant_abc", args)
 	if err != nil {
-		log.Fatalf("Failed to declare restaurant_abc_queue: %v", err)
-	}
-
-	// Bind queue to Direct Exchange
-	err = ch.QueueBind(
-		restaurantQueue.Name, // queue name
-		"restaurant_abc",     // routing key
-		"orders_exchange",    // exchange
-		false,                // no-wait
-		nil,                  // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to bind restaurant_abc_queue: %v", err)
+		log.Fatalf(err.Error())
 	}
 
 	// Declare queues for Fanout Exchange
-	driver1Queue, err := ch.QueueDeclare(
-		"driver1_queue", // name
-		true,            // durable
-		false,           // delete when unused
-		false,           // exclusive
-		false,           // no-wait
-		nil,             // arguments
-	)
+	driver1Queue, err := DeclareAndBindFanoutExchangeQueue(ch, "driver1_queue", "order_ready_exchange")
 	if err != nil {
-		log.Fatalf("Failed to declare driver1_queue: %v", err)
+		log.Fatalf(err.Error())
 	}
-	err = ch.QueueBind(
-		driver1Queue.Name,      // queue name
-		"",                     // routing key (empty for fanout)
-		"order_ready_exchange", // exchange
-		false,                  // no-wait
-		nil,                    // arguments
-	)
+	driver2Queue, err := DeclareAndBindFanoutExchangeQueue(ch, "driver2_queue", "order_ready_exchange")
 	if err != nil {
-		log.Fatalf("Failed to bind driver1_queue: %v", err)
-	}
-
-	driver2Queue, err := ch.QueueDeclare(
-		"driver2_queue", // name
-		true,            // durable
-		false,           // delete when unused
-		false,           // exclusive
-		false,           // no-wait
-		nil,             // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare driver2_queue: %v", err)
-	}
-	err = ch.QueueBind(
-		driver2Queue.Name,      // queue name
-		"",                     // routing key (empty for fanout)
-		"order_ready_exchange", // exchange
-		false,                  // no-wait
-		nil,                    // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to bind driver2_queue: %v", err)
+		log.Fatalf(err.Error())
 	}
 
 	// Declare queue for Topic Exchange
-	northQueue, err := ch.QueueDeclare(
-		"north_deliveries", // name
-		true,               // durable
-		false,              // delete when unused
-		false,              // exclusive
-		false,              // no-wait
-		nil,                // arguments
-	)
+	northQueue, err := DeclareAndBindTopicExchangeQueue(ch, "north_deliveries", "delivery_exchange", "delivery.assign.north")
 	if err != nil {
-		log.Fatalf("Failed to declare north_deliveries: %v", err)
-	}
-	err = ch.QueueBind(
-		northQueue.Name,         // queue name
-		"delivery.assign.north", // routing key
-		"delivery_exchange",     // exchange
-		false,                   // no-wait
-		nil,                     // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to bind north_deliveries: %v", err)
+		log.Fatalf(err.Error())
 	}
 
 	// Declare queue for Headers Exchange with DLX
@@ -167,29 +98,12 @@ func main() {
 		"x-dead-letter-exchange":    "dlx_exchange", // Dead letter exchange
 		"x-dead-letter-routing-key": "dlq_key",      // Dead letter routing key
 	}
-	inTransitQueue, err := ch.QueueDeclare(
-		"in_transit_queue", // name
-		true,               // durable
-		false,              // delete when unused
-		false,              // exclusive
-		false,              // no-wait
-		statusArgs,         // arguments
-	)
-	if err != nil {
-		log.Fatalf("Failed to declare in_transit_queue: %v", err)
-	}
 	headers := amqp.Table{
 		"status": "in_transit", // header for routing
 	}
-	err = ch.QueueBind(
-		inTransitQueue.Name, // queue name
-		"",                  // routing key (empty for headers)
-		"status_exchange",   // exchange
-		false,               // no-wait
-		headers,             // arguments
-	)
+	inTransitQueue, err := DeclareAndBindHeaderExchangeQueue(ch, "in_transit_queue", "status_exchange", statusArgs, headers)
 	if err != nil {
-		log.Fatalf("Failed to bind in_transit_queue: %v", err)
+		log.Fatalf(err.Error())
 	}
 
 	// Consumer for restaurant_abc_queue with prefetch count
@@ -342,12 +256,16 @@ func main() {
 		for d := range dlqDeliveries {
 			log.Printf("Received dead-lettered message: %s", d.Body)
 			// Check x-death header for retry/expiration history
-			if deaths, ok := d.Headers["x-death"].([]interface{}); ok {
+			if deaths, ok := d.Headers["x-death"].([]any); ok {
+				var xDeathRecords strings.Builder
 				for i, death := range deaths {
 					if deathMap, ok := death.(amqp.Table); ok {
-						log.Printf("Death %d: exchange=%s, count=%d",
-							i+1, deathMap["exchange"], deathMap["count"])
+						xDeathRecords.WriteString(fmt.Sprintf("Death %d: exchange=%s, count=%d\n",
+							i+1, deathMap["exchange"], deathMap["count"]))
 					}
+				}
+				if xDeathRecords.Len() > 0 {
+					log.Printf("x-death Records:\n%s", xDeathRecords.String())
 				}
 			}
 			d.Ack(false) // Acknowledge dead-lettered message
