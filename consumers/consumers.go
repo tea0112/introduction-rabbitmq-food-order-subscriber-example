@@ -51,26 +51,30 @@ func ConsumeRestaurantABCQueue(ch *amqp.Channel) {
 	if err != nil {
 		log.Fatalf("Failed to register consumer for restaurant_abc_queue: %v", err)
 	}
-	go func() {
-		for d := range orderDeliveries {
-			log.Printf("Received order: %s", d.Body)
-			time.Sleep(2 * time.Second) // Simulate processing
-			var order map[string]string
-			json.Unmarshal(d.Body, &order)
-			// Poison message always fails
-			if order["order_id"] == "poison" {
-				log.Printf("Processing failed for poison message, requeueing")
-				d.Nack(false, true) // Negative acknowledgment with requeue
-			} else if rand.Intn(10) < 3 { // 30% chance to fail
-				log.Printf("Processing failed, requeueing")
-				d.Nack(false, true) // Negative acknowledgment with requeue
-			} else {
-				log.Printf("Order processed successfully")
-				d.Ack(false) // Manual acknowledgment
-			}
-		}
-	}()
 
+	go handleOrderDeliveryMessages(orderDeliveries)
+}
+
+func handleOrderDeliveryMessages(orderDeliveries <-chan amqp.Delivery) {
+	for d := range orderDeliveries {
+		log.Printf("Received order: %s", d.Body)
+		time.Sleep(2 * time.Second) // Simulate processing
+
+		var order map[string]string
+		json.Unmarshal(d.Body, &order)
+
+		// Poison message always fails
+		if order["order_id"] == "poison" {
+			log.Printf("Processing failed for poison message, requeueing")
+			d.Nack(false, true) // Negative acknowledgment with requeue
+		} else if rand.Intn(10) < 3 { // 30% chance to fail
+			log.Printf("Processing failed, requeueing")
+			d.Nack(false, true) // Negative acknowledgment with requeue
+		} else {
+			log.Printf("Order processed successfully")
+			d.Ack(false) // Manual acknowledgment
+		}
+	}
 }
 
 func ConsumeDriver1Queue(ch *amqp.Channel) {
