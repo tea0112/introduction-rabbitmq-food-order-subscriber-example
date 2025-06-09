@@ -206,8 +206,8 @@ func ConsumeDeadLetterQueue(ch *amqp.Channel) {
 				var xDeathRecords strings.Builder
 				for i, death := range deaths {
 					if deathMap, ok := death.(amqp.Table); ok {
-						xDeathRecords.WriteString(fmt.Sprintf("Death message %d: exchange=%s, queue=%s, rounting-keys=%s, count=%d, reason=%s\n",
-							i+1, deathMap["exchange"], deathMap["queue"], deathMap["routing-keys"], deathMap["count"], deathMap["reason"]))
+						xDeathRecords.WriteString(fmt.Sprintf("Death message %d: exchange=%s, queue=%s, rounting-keys=%s, count=%d, reason=%s, body=%s\n",
+							i+1, deathMap["exchange"], deathMap["queue"], deathMap["routing-keys"], deathMap["count"], deathMap["reason"], d.Body))
 					}
 				}
 
