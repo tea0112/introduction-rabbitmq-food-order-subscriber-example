@@ -65,6 +65,7 @@ func main() {
 
 	// Declare queue for Direct Exchange with delivery limit and DLX
 	orderArgs := amqp.Table{
+		"x-queue-type":              "quorum",       // Queue type supports x-delivery-limit
 		"x-delivery-limit":          3,              // Retry up to 3 times
 		"x-dead-letter-exchange":    "dlx_exchange", // Dead letter exchange
 		"x-dead-letter-routing-key": "dlq_key",      // Dead letter routing key
