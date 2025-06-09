@@ -1,4 +1,4 @@
-package publishers
+package exchange_queues
 
 import (
 	amqp "github.com/rabbitmq/amqp091-go"

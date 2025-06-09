@@ -1,4 +1,4 @@
-package publishers
+package exchange_queues
 
 import (
 	"fmt"

@@ -22,7 +22,7 @@ func main() {
 	}
 	defer ch.Close()
 
-	publishers.DeclareAndBind(ch)
+	exchange_queues.DeclareAndBind(ch)
 	consumers.Consume(ch)
 
 	// Keep the application running

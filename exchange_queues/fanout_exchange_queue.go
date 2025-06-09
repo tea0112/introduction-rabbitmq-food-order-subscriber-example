@@ -1,12 +1,12 @@
-package publishers
+package exchange_queues
 
 import (
 	"fmt"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func DeclareAndBindTopicExchangeQueue(ch *amqp.Channel, queueName string, exchangeName string, bindingKey string) (*amqp.Queue, error) {
-	// Declare queue for Topic Exchange
+func DeclareAndBindFanoutExchangeQueue(ch *amqp.Channel, queueName string, exchangeName string) (*amqp.Queue, error) {
+	// Declare queues for Fanout Exchange
 	queue, err := ch.QueueDeclare(
 		queueName, // name
 		true,      // durable
@@ -20,7 +20,7 @@ func DeclareAndBindTopicExchangeQueue(ch *amqp.Channel, queueName string, exchan
 	}
 	err = ch.QueueBind(
 		queue.Name,   // queue name
-		bindingKey,   // binding key
+		"",           // routing key (empty for fanout)
 		exchangeName, // exchange
 		false,        // no-wait
 		nil,          // arguments
